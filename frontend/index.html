@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Self Consultation</title>
+  <style>
+    body { font-family: Arial; max-width: 600px; margin: 30px auto; }
+    input, select, textarea { width: 100%; margin: 8px 0; padding: 8px; }
+    button { padding: 10px 20px; }
+    #report { margin-top: 20px; background: #f4f4f4; padding: 10px; }
+  </style>
+</head>
+<body>
+
+<h2>Login</h2>
+<input type="email" id="email" placeholder="Email" />
+<input type="password" id="password" placeholder="Password" />
+<button onclick="login()">Login</button>
+
+<h2>Submit Consultation</h2>
+<form id="consultForm">
+  <input id="symptoms" placeholder="Symptoms (comma-separated)" required />
+  <select id="duration">
+    <option value="">Select duration</option>
+    <option>less than 3 days</option>
+    <option>3-7 days</option>
+    <option>more than 1 week</option>
+  </select>
+  <select id="severity">
+    <option value="">Select severity</option>
+    <option>low</option>
+    <option>moderate</option>
+    <option>high</option>
+  </select>
+  <textarea id="notes" placeholder="Additional notes..."></textarea>
+  <button type="submit">Submit</button>
+</form>
+
+<div id="report"></div>
+
+<script>
+  const API = 'http://localhost:5000/api';
+
+  async function login() {
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
+
+    const res = await fetch(`${API}/users/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password })
+    });
+
+    const data = await res.json();
+    if (res.ok) {
+      localStorage.setItem("token", data.token);
+      alert("Logged in successfully!");
+    } else {
+      alert(data.message || "Login failed");
+    }
+  }
+
+  document.getElementById("consultForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+      alert("Please login first.");
+      return;
+    }
+
+    const symptoms = document.getElementById("symptoms").value.split(',').map(s => s.trim());
+    const duration = document.getElementById("duration").value;
+    const severity = document.getElementById("severity").value;
+    const notes = document.getElementById("notes").value;
+
+    const res = await fetch(`${API}/consult`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`
+      },
+      body: JSON.stringify({ symptoms, duration, severity, notes })
+    });
+
+    const data = await res.json();
+    if (res.ok) {
+      document.getElementById("report").innerText = `📋 Generated Report:\n\n${data.report}`;
+    } else {
+      alert(data.message || "Consultation failed");
+    }
+  });
+</script>
+
+</body>
+</html>
