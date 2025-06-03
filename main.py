@@ -1,11 +1,10 @@
-from fastapi import FastAPI
-from routes import auth, consult
+import streamlit as st
 
-app = FastAPI(title="Medical Consultation API")
+st.title("🦷 Elite Dental Consultation")
+st.write("Welcome, Dr. Cyprien!")
 
-app.include_router(auth.router, prefix="/auth")
-app.include_router(consult.router, prefix="/consult")
+name = st.text_input("Patient name:")
+age = st.number_input("Age:", min_value=0, max_value=120)
 
-@app.get("/")
-def read_root():
-    return {"message": "Welcome to the Medical Consultation API"}
+if st.button("Submit"):
+    st.success(f"Saved info for {name}, aged {age}.")
