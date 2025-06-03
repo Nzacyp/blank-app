@@ -14,38 +14,83 @@ def prev_step():
     if st.session_state.step > 1:
         st.session_state.step -= 1
 
-def infer_diagnosis(answers):
+def infer_diagnosis_refined(answers):
     complaint = answers.get("complaint")
-    diagnosis = "No diagnosis could be inferred."
+    diagnosis = []
+    recommendations = []
 
+    # Toothache logic
     if complaint == "Toothache":
         severity = answers.get("pain_severity", "Mild")
+        duration = answers.get("pain_duration", 0)
         trigger = answers.get("pain_trigger", "None")
-        if severity == "Severe" and trigger in ["Cold", "Heat"]:
-            diagnosis = "Likely pulpitis or dental caries. Recommend clinical examination and possible X-ray."
-        elif severity in ["Mild", "Moderate"] and trigger == "None":
-            diagnosis = "Possible mild tooth sensitivity. Advise patient on oral hygiene and follow-up."
-        else:
-            diagnosis = "Symptoms unclear, further evaluation needed."
 
+        # Severe, prolonged pain with trigger
+        if severity == "Severe" and duration > 3 and trigger in ["Cold", "Heat"]:
+            diagnosis.append("Irreversible pulpitis or dental caries")
+            recommendations.append("Recommend urgent endodontic evaluation and possible root canal therapy.")
+        # Moderate pain triggered by chewing
+        elif severity in ["Moderate", "Severe"] and trigger == "Chewing":
+            diagnosis.append("Possible cracked tooth or pulp inflammation")
+            recommendations.append("Clinical examination and bite test recommended.")
+        # Mild pain without clear trigger
+        elif severity == "Mild" and trigger == "None":
+            diagnosis.append("Mild tooth sensitivity")
+            recommendations.append("Advise desensitizing toothpaste and monitor symptoms.")
+        else:
+            diagnosis.append("Unclear toothache etiology")
+            recommendations.append("Further clinical and radiographic evaluation needed.")
+
+        # Red flag: severe pain >7 days
+        if severity == "Severe" and duration > 7:
+            recommendations.append("Consider referral for urgent dental intervention due to prolonged severe pain.")
+
+    # Bleeding gums logic
     elif complaint == "Bleeding gums":
         frequency = answers.get("bleeding_frequency", "Rarely")
-        if frequency in ["Often", "Always"]:
-            diagnosis = "Probable gingivitis or periodontal disease. Recommend professional cleaning and periodontal assessment."
-        else:
-            diagnosis = "Occasional bleeding; advise improved oral hygiene and monitoring."
+        duration = answers.get("bleeding_duration", 0)
 
-    elif complaint == "Swelling":
-        pain = answers.get("pain_with_swelling", "No")
-        if pain == "Yes":
-            diagnosis = "Possible dental abscess; urgent dental treatment recommended."
+        if frequency in ["Often", "Always"] and duration > 7:
+            diagnosis.append("Chronic gingivitis or early periodontitis")
+            recommendations.append("Recommend scaling and root planing with oral hygiene reinforcement.")
+        elif frequency in ["Sometimes", "Often"] and duration <= 7:
+            diagnosis.append("Acute gingivitis")
+            recommendations.append("Advise improved oral hygiene and possible antimicrobial mouthwash.")
         else:
-            diagnosis = "Swelling without pain; differential diagnosis includes cyst or benign tumor; clinical evaluation needed."
+            diagnosis.append("Minimal gum bleeding")
+            recommendations.append("Monitor and maintain good oral hygiene.")
+
+        # Red flag: bleeding gums + swelling or pain
+        swelling = answers.get("swelling_location", "")
+        pain_with_swelling = answers.get("pain_with_swelling", "No")
+        if swelling and pain_with_swelling == "Yes":
+            recommendations.append("Possible periodontal abscess; urgent dental assessment needed.")
+
+    # Swelling logic
+    elif complaint == "Swelling":
+        duration = answers.get("swelling_duration", 0)
+        pain = answers.get("pain_with_swelling", "No")
+        location = answers.get("swelling_location", "")
+
+        if pain == "Yes" and duration > 1:
+            diagnosis.append("Probable dental abscess or cellulitis")
+            recommendations.append("Urgent dental intervention and possible antibiotic therapy recommended.")
+        elif pain == "No" and duration > 7:
+            diagnosis.append("Possibly cyst or benign tumor")
+            recommendations.append("Recommend imaging and specialist referral for further evaluation.")
+        else:
+            diagnosis.append("Mild swelling")
+            recommendations.append("Monitor and follow-up as needed.")
 
     else:
-        diagnosis = "Complaint needs further clinical evaluation."
+        diagnosis.append("Unspecified complaint")
+        recommendations.append("Further clinical assessment required.")
 
-    return diagnosis
+    # Combine lists into readable text
+    diagnosis_text = "\n- ".join([""] + diagnosis)  # prepend newline & bullet
+    recommendation_text = "\n- ".join([""] + recommendations)
+
+    return f"**Possible Diagnoses:**{diagnosis_text}\n\n**Recommendations:**{recommendation_text}"
 
 # Step 1: Patient info input
 if st.session_state.step == 1:
@@ -150,8 +195,8 @@ elif st.session_state.step == 4:
     for key, value in st.session_state.answers.items():
         st.write(f"**{key.replace('_', ' ').capitalize()}:** {value}")
 
-    diagnosis = infer_diagnosis(st.session_state.answers)
-    st.markdown(f"### Preliminary Diagnosis Suggestion:\n\n{diagnosis}")
+    diagnosis_text = infer_diagnosis_refined(st.session_state.answers)
+    st.markdown(diagnosis_text)
 
     if st.button("Start New Consultation"):
         st.session_state.step = 1
