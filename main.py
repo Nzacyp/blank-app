@@ -96,33 +96,21 @@ elif st.session_state.step == 3:
     if st.button("Back"): prev_step()
     if st.button("Next"): next_step()
 
-# **Step 4: Risk Assessment**
+# **Step 4: Diagnosis Summary & PDF Generation**
 elif st.session_state.step == 4:
-    st.header("Step 4: Risk Assessment")
-
-    st.session_state.answers["high_fever"] = st.radio("Have you had a high fever recently?", ["Yes", "No"])
-    st.session_state.answers["difficulty_swallowing"] = st.radio("Do you have difficulty swallowing or opening your mouth?", ["Yes", "No"])
-    st.session_state.answers["recent_facial_trauma"] = st.radio("Have you experienced facial trauma recently?", ["Yes", "No"])
-    st.session_state.answers["rapid_symptom_worsening"] = st.radio("Are your symptoms worsening rapidly?", ["Yes", "No"])
-
-    if st.button("Back"): prev_step()
-    if st.button("Next"): next_step()
-
-# **Step 5: Diagnosis Summary & PDF Generation**
-elif st.session_state.step == 5:
-    st.header("Step 5: Diagnosis & Recommendations")
+    st.header("Step 4: Diagnosis & Recommendations")
 
     # Generate possible diagnosis based on responses
     diagnosis = []
     recommendations = []
     urgency_level = "Routine Consultation"
 
-    if st.session_state.answers["pain_severity"] == "Severe" and st.session_state.answers["pain_duration"] > 3 and st.session_state.answers["pain_trigger"] == "Yes":
+    if st.session_state.answers.get("pain_severity") == "Severe" and st.session_state.answers.get("pain_duration", 0) > 3 and st.session_state.answers.get("pain_trigger") == "Yes":
         diagnosis.append("Irreversible pulpitis or deep dental caries")
         recommendations.append("Urgent endodontic evaluation needed.")
         urgency_level = "Urgent Consultation"
 
-    if st.session_state.answers["high_fever"] == "Yes" or st.session_state.answers["difficulty_swallowing"] == "Yes":
+    if st.session_state.answers.get("high_fever") == "Yes" or st.session_state.answers.get("difficulty_swallowing") == "Yes":
         urgency_level = "Emergency Consultation"
         recommendations.append("Seek immediate medical attention.")
 
@@ -137,3 +125,24 @@ elif st.session_state.step == 5:
     if st.button("🔁 New Consultation"):
         st.session_state.step = 1
         st.session_state.answers = {}
+
+# **Generate Consultation PDF**
+def generate_pdf():
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer)
+
+    logo_path = "static/logo.png"
+    try:
+        logo = ImageReader(logo_path)
+        c.drawImage(logo, 50, 720, width=250, height=100)
+    except:
+        pass
+
+    c.drawString(100, 700, f"Consultation Report for {st.session_state.username}")
+    
+    for index, (key, value) in enumerate(st.session_state.answers.items()):
+        c.drawString(100, 680 - (index * 20), f"{key.capitalize()}: {value}")
+
+    c.save()
+    buffer.seek(0)
+    return buffer
