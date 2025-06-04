@@ -1,72 +1,11 @@
 import streamlit as st
-import speech_recognition as sr
 import sqlite3
 import bcrypt
 import io
+import pandas as pd
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 from datetime import datetime
-
-# Initialize Speech Recognizer
-recognizer = sr.Recognizer()
-
-def capture_voice_input():
-    with sr.Microphone() as source:
-        st.info("🎤 Speak your symptoms now...")
-        recognizer.adjust_for_ambient_noise(source)
-        try:
-            audio = recognizer.listen(source, timeout=5)
-            text = recognizer.recognize_google(audio)
-            st.success(f"🗣 Recognized: {text}")
-            return text
-        except sr.UnknownValueError:
-            st.error("❌ Could not understand audio.")
-            return None
-        except sr.RequestError:
-            st.error("⚠️ Could not request results; check your internet connection.")
-            return None
-
-# **Authentication System**
-def create_users_table():
-    conn = sqlite3.connect("users.db")
-    c = conn.cursor()
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL
-        )
-    """)
-    conn.commit()
-    conn.close()
-
-def hash_password(password):
-    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-
-def check_password(stored_password, provided_password):
-    return bcrypt.checkpw(provided_password.encode("utf-8"), stored_password.encode("utf-8"))
-
-def register_user(username, password):
-    conn = sqlite3.connect("users.db")
-    c = conn.cursor()
-    hashed_pw = hash_password(password)
-    try:
-        c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, hashed_pw))
-        conn.commit()
-        conn.close()
-        return True
-    except sqlite3.IntegrityError:
-        return False
-
-def authenticate(username, password):
-    conn = sqlite3.connect("users.db")
-    c = conn.cursor()
-    c.execute("SELECT password FROM users WHERE username = ?", (username,))
-    result = c.fetchone()
-    conn.close()
-    return result and check_password(result[0], password)
-
-create_users_table()
 
 # **Session Initialization**
 if "user_logged_in" not in st.session_state:
@@ -78,27 +17,20 @@ if "step" not in st.session_state:
 if "answers" not in st.session_state:
     st.session_state.answers = {}
 
-# **Login & Registration UI**
-st.title("🔐 Login to Elite Dental Consultation")
+# **Authentication System**
+def authenticate(username, password):
+    conn = sqlite3.connect("users.db")
+    c = conn.cursor()
+    c.execute("SELECT password FROM users WHERE username = ?", (username,))
+    result = c.fetchone()
+    conn.close()
+    return result and bcrypt.checkpw(password.encode("utf-8"), result[0].encode("utf-8"))
 
-menu = st.sidebar.selectbox("Menu", ["Login", "Register"])
-
-if menu == "Register":
-    st.subheader("🆕 Create a New Account")
-    new_username = st.text_input("Choose a Username")
-    new_password = st.text_input("Choose a Password", type="password")
-
-    if st.button("Register"):
-        if register_user(new_username, new_password):
-            st.success("Account created successfully! ✅ Please log in.")
-        else:
-            st.error("Username already exists. Try a different one.")
-
-if menu == "Login":
-    st.subheader("🔑 User Login")
+# **Login UI**
+st.title("🔐 Login to Self-Consultation")
+if not st.session_state.user_logged_in:
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
-
     if st.button("Login"):
         if authenticate(username, password):
             st.session_state.user_logged_in = True
@@ -106,7 +38,6 @@ if menu == "Login":
             st.success(f"Welcome, {username}! ✅")
         else:
             st.error("Invalid username or password!")
-
     st.stop()
 
 # **Logout Button**
@@ -116,56 +47,14 @@ if st.sidebar.button("Logout"):
     st.session_state.username = None
     st.rerun()
 
-# **Consultation Form**
-def next_step():
-    st.session_state.step += 1
+# **Step Navigation**
+def next_step(): st.session_state.step += 1
+def prev_step(): 
+    if st.session_state.step > 1: st.session_state.step -= 1
 
-def prev_step():
-    if st.session_state.step > 1:
-        st.session_state.step -= 1
-
-def save_consultation_to_csv(answers):
-    file_path = "consultations.csv"
-    data = {
-        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "username": st.session_state.username,
-        "patient_name": answers.get("patient_name"),
-        "age": answers.get("age"),
-        "gender": answers.get("gender"),
-        "complaint": answers.get("complaint"),
-    }
-    df_new = pd.DataFrame([data])
-
-    if os.path.exists(file_path):
-        df_existing = pd.read_csv(file_path)
-        df_combined = pd.concat([df_existing, df_new], ignore_index=True)
-    else:
-        df_combined = df_new
-
-    df_combined.to_csv(file_path, index=False)
-
-def generate_pdf():
-    buffer = io.BytesIO()
-    c = canvas.Canvas(buffer)
-
-    logo_path = "static/logo.png"
-    try:
-        logo = ImageReader(logo_path)
-        c.drawImage(logo, 50, 720, width=250, height=100)
-    except:
-        pass
-
-    c.drawString(100, 700, f"Consultation Report for {st.session_state.username}")
-    for index, (key, value) in enumerate(st.session_state.answers.items()):
-        c.drawString(100, 680 - (index * 20), f"{key.capitalize()}: {value}")
-
-    c.save()
-    buffer.seek(0)
-    return buffer
-
-# **Step 1: Patient Info**
+# **Step 1: Basic Patient Info**
 if st.session_state.step == 1:
-    st.title("🦷 Elite Dental Consultation")
+    st.title("🩺 Self-Consultation")
     st.header("Step 1: Patient Info")
     st.session_state.answers["patient_name"] = st.text_input("Patient Name", value=st.session_state.answers.get("patient_name", ""))
     st.session_state.answers["age"] = st.number_input("Age", min_value=0, max_value=120, value=st.session_state.answers.get("age", 0))
@@ -173,20 +62,78 @@ if st.session_state.step == 1:
 
     if st.button("Next"):
         if not st.session_state.answers["patient_name"] or st.session_state.answers["age"] == 0:
-            st.error("Please fill patient name and age.")
+            st.error("Please enter patient name and age.")
         else:
             next_step()
 
-# **Step 2: Complaint (Voice Input Enabled)**
+# **Step 2: General Symptoms**
 elif st.session_state.step == 2:
-    st.header("Step 2: Presenting Complaint")
+    st.header("Step 2: Select Primary Symptom")
+    st.session_state.answers["complaint"] = st.selectbox("Which symptom best describes your condition?", 
+        ["Toothache", "Bleeding Gums", "Jaw Swelling", "Sensitivity", "Other"], 
+        index=["Toothache", "Bleeding Gums", "Jaw Swelling", "Sensitivity", "Other"].index(st.session_state.answers.get("complaint", "Toothache"))
+    )
+    if st.button("Back"): prev_step()
+    if st.button("Next"): next_step()
 
-    if st.button("🎤 Speak Your Symptoms"):
-        voice_text = capture_voice_input()
-        if voice_text:
-            st.session_state.answers["complaint"] = voice_text
-    
-    st.session_state.answers["complaint"] = st.text_input("Or Type Your Complaint", value=st.session_state.answers.get("complaint", ""))
+# **Step 3: Detailed Questions**
+elif st.session_state.step == 3:
+    st.header("Step 3: Describe Your Symptoms")
+
+    if st.session_state.answers["complaint"] == "Toothache":
+        st.session_state.answers["pain_severity"] = st.selectbox("Pain Severity:", ["Mild", "Moderate", "Severe"])
+        st.session_state.answers["pain_duration"] = st.slider("How long have you had the pain?", 0, 30, 3)
+        st.session_state.answers["pain_trigger"] = st.radio("Is the pain triggered by cold, heat, or biting?", ["Yes", "No"])
+
+    elif st.session_state.answers["complaint"] == "Bleeding Gums":
+        st.session_state.answers["bleeding_occurrence"] = st.selectbox("When does bleeding occur?", ["Brushing", "Eating", "Randomly"])
+        st.session_state.answers["gum_swelling"] = st.radio("Do your gums feel swollen or tender?", ["Yes", "No"])
+
+    elif st.session_state.answers["complaint"] == "Jaw Swelling":
+        st.session_state.answers["swelling_size"] = st.selectbox("How large is the swelling?", ["Small", "Moderate", "Severe"])
+        st.session_state.answers["difficulty_opening_mouth"] = st.radio("Do you have difficulty opening your mouth?", ["Yes", "No"])
 
     if st.button("Back"): prev_step()
     if st.button("Next"): next_step()
+
+# **Step 4: Risk Assessment**
+elif st.session_state.step == 4:
+    st.header("Step 4: Risk Assessment")
+
+    st.session_state.answers["high_fever"] = st.radio("Have you had a high fever recently?", ["Yes", "No"])
+    st.session_state.answers["difficulty_swallowing"] = st.radio("Do you have difficulty swallowing or opening your mouth?", ["Yes", "No"])
+    st.session_state.answers["recent_facial_trauma"] = st.radio("Have you experienced facial trauma recently?", ["Yes", "No"])
+    st.session_state.answers["rapid_symptom_worsening"] = st.radio("Are your symptoms worsening rapidly?", ["Yes", "No"])
+
+    if st.button("Back"): prev_step()
+    if st.button("Next"): next_step()
+
+# **Step 5: Diagnosis Summary & PDF Generation**
+elif st.session_state.step == 5:
+    st.header("Step 5: Diagnosis & Recommendations")
+
+    # Generate possible diagnosis based on responses
+    diagnosis = []
+    recommendations = []
+    urgency_level = "Routine Consultation"
+
+    if st.session_state.answers["pain_severity"] == "Severe" and st.session_state.answers["pain_duration"] > 3 and st.session_state.answers["pain_trigger"] == "Yes":
+        diagnosis.append("Irreversible pulpitis or deep dental caries")
+        recommendations.append("Urgent endodontic evaluation needed.")
+        urgency_level = "Urgent Consultation"
+
+    if st.session_state.answers["high_fever"] == "Yes" or st.session_state.answers["difficulty_swallowing"] == "Yes":
+        urgency_level = "Emergency Consultation"
+        recommendations.append("Seek immediate medical attention.")
+
+    st.markdown(f"### **Possible Diagnosis:** {', '.join(diagnosis)}")
+    st.markdown(f"### **Recommendations:** {', '.join(recommendations)}")
+    st.markdown(f"### **Urgency Level:** 🔥 {urgency_level}")
+
+    if st.button("📄 Download PDF Report"):
+        pdf_buffer = generate_pdf()
+        st.download_button("Download Report", pdf_buffer, "consultation_report.pdf", "application/pdf")
+
+    if st.button("🔁 New Consultation"):
+        st.session_state.step = 1
+        st.session_state.answers = {}
