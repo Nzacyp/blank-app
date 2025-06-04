@@ -76,7 +76,7 @@ def generate_pdf():
     logo_path = "static/logo.png"  # Adjust path to your logo file
     try:
         logo = ImageReader(logo_path)
-        c.drawImage(logo, 150, 750, width=120, height=250)  # Position and size
+        c.drawImage(logo, 50, 750, width=300, height=50)  # Position and size
     except Exception as e:
         print(f"Error loading logo: {e}")
 
