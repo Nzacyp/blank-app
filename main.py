@@ -6,12 +6,50 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 from datetime import datetime
 
-# Initialize session state
+# **Fake User Database**
+USER_CREDENTIALS = {
+    "doctor1": "password123",
+    "admin": "securepass"
+}
+
+# **Session Initialization**
+if "user_logged_in" not in st.session_state:
+    st.session_state.user_logged_in = False
+if "username" not in st.session_state:
+    st.session_state.username = None
 if "step" not in st.session_state:
     st.session_state.step = 1
 if "answers" not in st.session_state:
     st.session_state.answers = {}
 
+# **Authentication Function**
+def authenticate(username, password):
+    return USER_CREDENTIALS.get(username) == password
+
+# **Login UI**
+if not st.session_state.user_logged_in:
+    st.title("🔐 Login to Elite Dental Consultation")
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+    
+    if st.button("Login"):
+        if authenticate(username, password):
+            st.session_state.user_logged_in = True
+            st.session_state.username = username
+            st.success(f"Welcome, {username}! ✅")
+        else:
+            st.error("Invalid username or password!")
+
+    st.stop()  # Stop execution until logged in
+
+# **Logout Button**
+st.sidebar.write(f"Logged in as: **{st.session_state.username}**")
+if st.sidebar.button("Logout"):
+    st.session_state.user_logged_in = False
+    st.session_state.username = None
+    st.rerun()
+
+# **Consultation Form**
 def next_step():
     st.session_state.step += 1
 
@@ -21,9 +59,7 @@ def prev_step():
 
 def infer_diagnosis_refined(answers):
     complaint = answers.get("complaint")
-    diagnosis = []
-    recommendations = []
-    treatment_plan = []
+    diagnosis, recommendations, treatment_plan = [], [], []
 
     if complaint == "Toothache":
         severity = answers.get("pain_severity", "Mild")
@@ -52,6 +88,7 @@ def save_consultation_to_csv(answers, diagnosis_output):
     file_path = "consultations.csv"
     data = {
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "username": st.session_state.username,
         "patient_name": answers.get("patient_name"),
         "age": answers.get("age"),
         "gender": answers.get("gender"),
@@ -72,24 +109,22 @@ def generate_pdf():
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer)
 
-    # Add logo
-    logo_path = "static/logo.png"  # Adjust path to your logo file
+    logo_path = "static/logo.png"
     try:
         logo = ImageReader(logo_path)
-        c.drawImage(logo, 50, 685, width=180, height=120)  # Position and size
-    except Exception as e:
-        print(f"Error loading logo: {e}")
+        c.drawImage(logo, 50, 720, width=250, height=100)
+    except:
+        pass
 
-    # Add consultation details
-    c.drawString(100, 690, "Patient Consultation Report")
+    c.drawString(100, 700, f"Consultation Report for {st.session_state.username}")
     for index, (key, value) in enumerate(st.session_state.answers.items()):
-        c.drawString(100, 670 - (index * 20), f"{key.capitalize()}: {value}")
+        c.drawString(100, 680 - (index * 20), f"{key.capitalize()}: {value}")
 
     c.save()
     buffer.seek(0)
     return buffer
 
-# Step 1: Patient Info
+# **Step 1: Patient Info**
 if st.session_state.step == 1:
     st.title("🦷 Elite Dental Consultation")
     st.header("Step 1: Patient Info")
@@ -103,18 +138,16 @@ if st.session_state.step == 1:
         else:
             next_step()
 
-# Step 2: Complaint
+# **Step 2: Complaint**
 elif st.session_state.step == 2:
     st.header("Step 2: Presenting Complaint")
     st.session_state.answers["complaint"] = st.selectbox("What is the main complaint?", ["Toothache", "Bleeding gums", "Swelling", "Other"],
         index=["Toothache", "Bleeding gums", "Swelling", "Other"].index(st.session_state.answers.get("complaint", "Toothache")))
 
-    if st.button("Back"):
-        prev_step()
-    if st.button("Next"):
-        next_step()
+    if st.button("Back"): prev_step()
+    if st.button("Next"): next_step()
 
-# Step 3: Diagnosis Summary & PDF Generation
+# **Step 3: Diagnosis Summary & PDF Generation**
 elif st.session_state.step == 3:
     st.header("Step 3: Diagnosis & Report")
     diagnosis_text = infer_diagnosis_refined(st.session_state.answers)
