@@ -3,6 +3,7 @@ import pandas as pd
 import os
 import io
 from reportlab.pdfgen import canvas
+from reportlab.lib.utils import ImageReader
 from datetime import datetime
 
 # Initialize session state
@@ -24,7 +25,6 @@ def infer_diagnosis_refined(answers):
     recommendations = []
     treatment_plan = []
 
-    # Toothache logic
     if complaint == "Toothache":
         severity = answers.get("pain_severity", "Mild")
         duration = answers.get("pain_duration", 0)
@@ -71,9 +71,20 @@ def save_consultation_to_csv(answers, diagnosis_output):
 def generate_pdf():
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer)
-    c.drawString(100, 750, "Patient Consultation Report")
-    for key, value in st.session_state.answers.items():
-        c.drawString(100, 720 - (list(st.session_state.answers.keys()).index(key) * 20), f"{key.capitalize()}: {value}")
+
+    # Add logo
+    logo_path = "static/logo.png"  # Adjust path to your logo file
+    try:
+        logo = ImageReader(logo_path)
+        c.drawImage(logo, 50, 750, width=100, height=50)  # Position and size
+    except Exception as e:
+        print(f"Error loading logo: {e}")
+
+    # Add consultation details
+    c.drawString(100, 700, "Patient Consultation Report")
+    for index, (key, value) in enumerate(st.session_state.answers.items()):
+        c.drawString(100, 680 - (index * 20), f"{key.capitalize()}: {value}")
+
     c.save()
     buffer.seek(0)
     return buffer
