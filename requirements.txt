@@ -1,1 +1,2 @@
 streamlit
+reportlab==4.4.1
