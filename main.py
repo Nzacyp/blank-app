@@ -1,4 +1,6 @@
 import streamlit as st
+import sqlite3
+import bcrypt
 import pandas as pd
 import os
 import io
@@ -6,11 +8,54 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 from datetime import datetime
 
-# **Fake User Database**
-USER_CREDENTIALS = {
-    "doctor1": "password123",
-    "admin": "securepass"
-}
+# **Database Initialization**
+def create_users_table():
+    conn = sqlite3.connect("users.db")
+    c = conn.cursor()
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+# **Hash Passwords Securely**
+def hash_password(password):
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+# **Verify Hashed Password**
+def check_password(stored_password, provided_password):
+    return bcrypt.checkpw(provided_password.encode("utf-8"), stored_password.encode("utf-8"))
+
+# **Register New Users**
+def register_user(username, password):
+    conn = sqlite3.connect("users.db")
+    c = conn.cursor()
+    hashed_pw = hash_password(password)
+    
+    try:
+        c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, hashed_pw))
+        conn.commit()
+        conn.close()
+        return True
+    except sqlite3.IntegrityError:
+        return False  # Username already exists
+
+# **Authenticate Login**
+def authenticate(username, password):
+    conn = sqlite3.connect("users.db")
+    c = conn.cursor()
+    c.execute("SELECT password FROM users WHERE username = ?", (username,))
+    result = c.fetchone()
+    conn.close()
+
+    return result and check_password(result[0], password)
+
+# **Initialize Database**
+create_users_table()
 
 # **Session Initialization**
 if "user_logged_in" not in st.session_state:
@@ -22,16 +67,27 @@ if "step" not in st.session_state:
 if "answers" not in st.session_state:
     st.session_state.answers = {}
 
-# **Authentication Function**
-def authenticate(username, password):
-    return USER_CREDENTIALS.get(username) == password
+# **Login & Registration UI**
+st.title("🔐 Login to Elite Dental Consultation")
 
-# **Login UI**
-if not st.session_state.user_logged_in:
-    st.title("🔐 Login to Elite Dental Consultation")
+menu = st.sidebar.selectbox("Menu", ["Login", "Register"])
+
+if menu == "Register":
+    st.subheader("🆕 Create a New Account")
+    new_username = st.text_input("Choose a Username")
+    new_password = st.text_input("Choose a Password", type="password")
+
+    if st.button("Register"):
+        if register_user(new_username, new_password):
+            st.success("Account created successfully! ✅ Please log in.")
+        else:
+            st.error("Username already exists. Try a different one.")
+
+if menu == "Login":
+    st.subheader("🔑 User Login")
     username = st.text_input("Username")
     password = st.text_input("Password", type="password")
-    
+
     if st.button("Login"):
         if authenticate(username, password):
             st.session_state.user_logged_in = True
@@ -137,30 +193,3 @@ if st.session_state.step == 1:
             st.error("Please fill patient name and age.")
         else:
             next_step()
-
-# **Step 2: Complaint**
-elif st.session_state.step == 2:
-    st.header("Step 2: Presenting Complaint")
-    st.session_state.answers["complaint"] = st.selectbox("What is the main complaint?", ["Toothache", "Bleeding gums", "Swelling", "Other"],
-        index=["Toothache", "Bleeding gums", "Swelling", "Other"].index(st.session_state.answers.get("complaint", "Toothache")))
-
-    if st.button("Back"): prev_step()
-    if st.button("Next"): next_step()
-
-# **Step 3: Diagnosis Summary & PDF Generation**
-elif st.session_state.step == 3:
-    st.header("Step 3: Diagnosis & Report")
-    diagnosis_text = infer_diagnosis_refined(st.session_state.answers)
-    st.markdown(diagnosis_text)
-
-    if st.button("💾 Save Consultation"):
-        save_consultation_to_csv(st.session_state.answers, diagnosis_text)
-        st.success("Consultation saved to consultations.csv")
-
-    if st.button("📄 Download PDF Report"):
-        pdf_buffer = generate_pdf()
-        st.download_button("Download Report", pdf_buffer, "report.pdf", "application/pdf")
-
-    if st.button("🔁 New Consultation"):
-        st.session_state.step = 1
-        st.session_state.answers = {}
