@@ -1,14 +1,32 @@
 import streamlit as st
+import speech_recognition as sr
 import sqlite3
 import bcrypt
-import pandas as pd
-import os
 import io
 from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 from datetime import datetime
 
-# **Database Initialization**
+# Initialize Speech Recognizer
+recognizer = sr.Recognizer()
+
+def capture_voice_input():
+    with sr.Microphone() as source:
+        st.info("🎤 Speak your symptoms now...")
+        recognizer.adjust_for_ambient_noise(source)
+        try:
+            audio = recognizer.listen(source, timeout=5)
+            text = recognizer.recognize_google(audio)
+            st.success(f"🗣 Recognized: {text}")
+            return text
+        except sr.UnknownValueError:
+            st.error("❌ Could not understand audio.")
+            return None
+        except sr.RequestError:
+            st.error("⚠️ Could not request results; check your internet connection.")
+            return None
+
+# **Authentication System**
 def create_users_table():
     conn = sqlite3.connect("users.db")
     c = conn.cursor()
@@ -22,39 +40,32 @@ def create_users_table():
     conn.commit()
     conn.close()
 
-# **Hash Passwords Securely**
 def hash_password(password):
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
-# **Verify Hashed Password**
 def check_password(stored_password, provided_password):
     return bcrypt.checkpw(provided_password.encode("utf-8"), stored_password.encode("utf-8"))
 
-# **Register New Users**
 def register_user(username, password):
     conn = sqlite3.connect("users.db")
     c = conn.cursor()
     hashed_pw = hash_password(password)
-    
     try:
         c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, hashed_pw))
         conn.commit()
         conn.close()
         return True
     except sqlite3.IntegrityError:
-        return False  # Username already exists
+        return False
 
-# **Authenticate Login**
 def authenticate(username, password):
     conn = sqlite3.connect("users.db")
     c = conn.cursor()
     c.execute("SELECT password FROM users WHERE username = ?", (username,))
     result = c.fetchone()
     conn.close()
-
     return result and check_password(result[0], password)
 
-# **Initialize Database**
 create_users_table()
 
 # **Session Initialization**
@@ -96,7 +107,7 @@ if menu == "Login":
         else:
             st.error("Invalid username or password!")
 
-    st.stop()  # Stop execution until logged in
+    st.stop()
 
 # **Logout Button**
 st.sidebar.write(f"Logged in as: **{st.session_state.username}**")
@@ -113,34 +124,7 @@ def prev_step():
     if st.session_state.step > 1:
         st.session_state.step -= 1
 
-def infer_diagnosis_refined(answers):
-    complaint = answers.get("complaint")
-    diagnosis, recommendations, treatment_plan = [], [], []
-
-    if complaint == "Toothache":
-        severity = answers.get("pain_severity", "Mild")
-        duration = answers.get("pain_duration", 0)
-        trigger = answers.get("pain_trigger", "None")
-
-        if severity == "Severe" and duration > 3 and trigger in ["Cold", "Heat"]:
-            diagnosis.append("Irreversible pulpitis or deep dental caries")
-            recommendations.append("Urgent endodontic evaluation needed.")
-            treatment_plan.append("Root canal therapy or extraction.")
-        else:
-            diagnosis.append("General tooth sensitivity")
-            recommendations.append("Monitor with desensitizing toothpaste.")
-            treatment_plan.append("Topical fluoride.")
-
-    return f"""**Possible Diagnoses:**  
-- {'; '.join(diagnosis)}
-
-**Recommendations:**  
-- {'; '.join(recommendations)}
-
-**Treatment Plan:**  
-- {'; '.join(treatment_plan)}"""
-
-def save_consultation_to_csv(answers, diagnosis_output):
+def save_consultation_to_csv(answers):
     file_path = "consultations.csv"
     data = {
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -149,7 +133,6 @@ def save_consultation_to_csv(answers, diagnosis_output):
         "age": answers.get("age"),
         "gender": answers.get("gender"),
         "complaint": answers.get("complaint"),
-        "summary": diagnosis_output.replace("\n", " "),
     }
     df_new = pd.DataFrame([data])
 
@@ -193,3 +176,17 @@ if st.session_state.step == 1:
             st.error("Please fill patient name and age.")
         else:
             next_step()
+
+# **Step 2: Complaint (Voice Input Enabled)**
+elif st.session_state.step == 2:
+    st.header("Step 2: Presenting Complaint")
+
+    if st.button("🎤 Speak Your Symptoms"):
+        voice_text = capture_voice_input()
+        if voice_text:
+            st.session_state.answers["complaint"] = voice_text
+    
+    st.session_state.answers["complaint"] = st.text_input("Or Type Your Complaint", value=st.session_state.answers.get("complaint", ""))
+
+    if st.button("Back"): prev_step()
+    if st.button("Next"): next_step()
