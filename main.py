@@ -15,7 +15,7 @@ def generate_pdf():
     logo_path = "static/logo.png"
     try:
         logo = ImageReader(logo_path)
-        c.drawImage(logo, 50, 720, width=250, height=100)
+        c.drawImage(logo, 50, 720, width=150, height=100)
     except:
         pass
 
