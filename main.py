@@ -7,6 +7,27 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.utils import ImageReader
 from datetime import datetime
 
+# **Generate Consultation PDF**
+def generate_pdf():
+    buffer = io.BytesIO()
+    c = canvas.Canvas(buffer)
+
+    logo_path = "static/logo.png"
+    try:
+        logo = ImageReader(logo_path)
+        c.drawImage(logo, 50, 720, width=250, height=100)
+    except:
+        pass
+
+    c.drawString(100, 700, f"Consultation Report for {st.session_state.username}")
+    
+    for index, (key, value) in enumerate(st.session_state.answers.items()):
+        c.drawString(100, 680 - (index * 20), f"{key.capitalize()}: {value}")
+
+    c.save()
+    buffer.seek(0)
+    return buffer
+
 # **Session Initialization**
 if "user_logged_in" not in st.session_state:
     st.session_state.user_logged_in = False
@@ -125,24 +146,3 @@ elif st.session_state.step == 4:
     if st.button("🔁 New Consultation"):
         st.session_state.step = 1
         st.session_state.answers = {}
-
-# **Generate Consultation PDF**
-def generate_pdf():
-    buffer = io.BytesIO()
-    c = canvas.Canvas(buffer)
-
-    logo_path = "static/logo.png"
-    try:
-        logo = ImageReader(logo_path)
-        c.drawImage(logo, 50, 720, width=250, height=100)
-    except:
-        pass
-
-    c.drawString(100, 700, f"Consultation Report for {st.session_state.username}")
-    
-    for index, (key, value) in enumerate(st.session_state.answers.items()):
-        c.drawString(100, 680 - (index * 20), f"{key.capitalize()}: {value}")
-
-    c.save()
-    buffer.seek(0)
-    return buffer
