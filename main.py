@@ -1,148 +1,184 @@
 import streamlit as st
 import sqlite3
-import bcrypt
-import io
-import pandas as pd
-from reportlab.pdfgen import canvas
-from reportlab.lib.utils import ImageReader
 from datetime import datetime
+from fpdf import FPDF
+import os
 
-# **Generate Consultation PDF**
-def generate_pdf():
-    buffer = io.BytesIO()
-    c = canvas.Canvas(buffer)
+# === PAGE CONFIG: MUST BE FIRST STREAMLIT COMMAND ===
+st.set_page_config(page_title="🩺 Smart Medical Self-Consultation", layout="centered")
 
-    logo_path = "static/logo.png"
-    try:
-        logo = ImageReader(logo_path)
-        c.drawImage(logo, 50, 720, width=150, height=100)
-    except:
-        pass
+# === TRANSLATIONS ===
+translations = {
+    "en": {
+        "app_title": "🩺 Smart Medical Self-Consultation",
+        "subtitle": "Follow the steps below to get your diagnosis and treatment plan.",
+        "step1": "Step 1: Patient Information",
+        "step2": "Step 2: Select Symptoms",
+        "step3": "Step 3: Diagnosis",
+        "step4": "Step 4: Download Your Report",
+        "name": "Full Name",
+        "age": "Age",
+        "gender": "Gender",
+        "next": "Next",
+        "symptoms": "Choose your symptoms",
+        "diagnosis": "Diagnosis",
+        "treatment": "Treatment Plan",
+        "finalize": "Finalize and Save",
+        "download": "📄 Download Consultation Report",
+        "new": "Start New Consultation",
+        "history": "📁 Past Consultations",
+        "saved": "Consultation saved! Generating PDF...",
+        "gender_opts": ["Male", "Female", "Other"],
+        "symptoms_list": ["Fever", "Cough", "Headache", "Toothache", "Fatigue", "Shortness of breath"]
+    },
+    "rw": {
+        "app_title": "🩺 Kwisuzumisha kwa Muganga",
+        "subtitle": "Kurikirana intambwe zikurikira kugira ngo ubone ibisubizo.",
+        "step1": "Intambwe ya 1: Amakuru y’Umurwayi",
+        "step2": "Intambwe ya 2: Hitamo Ibimenyetso",
+        "step3": "Intambwe ya 3: Isuzuma",
+        "step4": "Intambwe ya 4: Kuramo Raporo yawe",
+        "name": "Amazina y'umurwayi",
+        "age": "Imyaka",
+        "gender": "Igitsina",
+        "next": "Komeza",
+        "symptoms": "Hitamo ibimenyetso",
+        "diagnosis": "Isuzuma",
+        "treatment": "Uburyo bwo Kuvura",
+        "finalize": "Rangiza & Bika",
+        "download": "📄 Kuramo Raporo",
+        "new": "Tangira Isuzuma Rishya",
+        "history": "📁 Amakuru Yabitswe",
+        "saved": "Isuzuma ribitswe! Raporo iri gutegurwa...",
+        "gender_opts": ["Gabo", "Gore", "Ibindi"],
+        "symptoms_list": ["Guh feveri", "Inkoko", "Umutwe", "Kubabara amenyo", "Kunanirwa", "Guhumeka nabi"]
+    }
+}
 
-    c.drawString(100, 700, f"Consultation Report for {st.session_state.username}")
-    
-    for index, (key, value) in enumerate(st.session_state.answers.items()):
-        c.drawString(100, 680 - (index * 20), f"{key.capitalize()}: {value}")
+# === SELECT LANGUAGE ===
+st.sidebar.title("🌐 Language / Ururimi")
+lang = st.sidebar.radio("Choose Language", options=["en", "rw"], format_func=lambda l: "English" if l == "en" else "Kinyarwanda")
+T = translations[lang]
 
-    c.save()
-    buffer.seek(0)
-    return buffer
+# === DATABASE SETUP ===
+conn = sqlite3.connect('patient_data.db')
+c = conn.cursor()
+c.execute('''
+    CREATE TABLE IF NOT EXISTS consultations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT,
+        age INTEGER,
+        gender TEXT,
+        symptoms TEXT,
+        diagnosis TEXT,
+        treatment TEXT,
+        created_at TEXT
+    )
+''')
+conn.commit()
 
-# **Session Initialization**
-if "user_logged_in" not in st.session_state:
-    st.session_state.user_logged_in = False
-if "username" not in st.session_state:
-    st.session_state.username = None
+# === SESSION SETUP ===
+st.title(T["app_title"])
+st.markdown(T["subtitle"])
+
 if "step" not in st.session_state:
     st.session_state.step = 1
-if "answers" not in st.session_state:
-    st.session_state.answers = {}
 
-# **Authentication System**
-def authenticate(username, password):
-    conn = sqlite3.connect("users.db")
-    c = conn.cursor()
-    c.execute("SELECT password FROM users WHERE username = ?", (username,))
-    result = c.fetchone()
-    conn.close()
-    return result and bcrypt.checkpw(password.encode("utf-8"), result[0].encode("utf-8"))
+if "form_data" not in st.session_state:
+    st.session_state.form_data = {}
 
-# **Login UI**
-st.title("🔐 Login to Self-Consultation")
-if not st.session_state.user_logged_in:
-    username = st.text_input("Username")
-    password = st.text_input("Password", type="password")
-    if st.button("Login"):
-        if authenticate(username, password):
-            st.session_state.user_logged_in = True
-            st.session_state.username = username
-            st.success(f"Welcome, {username}! ✅")
-        else:
-            st.error("Invalid username or password!")
-    st.stop()
-
-# **Logout Button**
-st.sidebar.write(f"Logged in as: **{st.session_state.username}**")
-if st.sidebar.button("Logout"):
-    st.session_state.user_logged_in = False
-    st.session_state.username = None
-    st.rerun()
-
-# **Step Navigation**
-def next_step(): st.session_state.step += 1
-def prev_step(): 
-    if st.session_state.step > 1: st.session_state.step -= 1
-
-# **Step 1: Basic Patient Info**
+# === STEP 1: PATIENT INFO ===
 if st.session_state.step == 1:
-    st.title("🩺 Self-Consultation")
-    st.header("Step 1: Patient Info")
-    st.session_state.answers["patient_name"] = st.text_input("Patient Name", value=st.session_state.answers.get("patient_name", ""))
-    st.session_state.answers["age"] = st.number_input("Age", min_value=0, max_value=120, value=st.session_state.answers.get("age", 0))
-    st.session_state.answers["gender"] = st.radio("Gender", ["Male", "Female", "Other"], index=["Male", "Female", "Other"].index(st.session_state.answers.get("gender", "Male")))
+    st.subheader(T["step1"])
+    with st.form("patient_info_form"):
+        name = st.text_input(T["name"])
+        age = st.number_input(T["age"], 1, 120)
+        gender = st.selectbox(T["gender"], T["gender_opts"])
+        submitted = st.form_submit_button(T["next"])
+        if submitted and name:
+            st.session_state.form_data.update({"name": name, "age": age, "gender": gender})
+            st.session_state.step = 2
 
-    if st.button("Next"):
-        if not st.session_state.answers["patient_name"] or st.session_state.answers["age"] == 0:
-            st.error("Please enter patient name and age.")
-        else:
-            next_step()
-
-# **Step 2: General Symptoms**
+# === STEP 2: SYMPTOMS ===
 elif st.session_state.step == 2:
-    st.header("Step 2: Select Primary Symptom")
-    st.session_state.answers["complaint"] = st.selectbox("Which symptom best describes your condition?", 
-        ["Toothache", "Bleeding Gums", "Jaw Swelling", "Sensitivity", "Other"], 
-        index=["Toothache", "Bleeding Gums", "Jaw Swelling", "Sensitivity", "Other"].index(st.session_state.answers.get("complaint", "Toothache"))
-    )
-    if st.button("Back"): prev_step()
-    if st.button("Next"): next_step()
+    st.subheader(T["step2"])
+    selected_symptoms = st.multiselect(T["symptoms"], T["symptoms_list"])
+    if st.button(T["next"]) and selected_symptoms:
+        st.session_state.form_data["symptoms"] = selected_symptoms
+        st.session_state.step = 3
 
-# **Step 3: Detailed Questions**
+# === STEP 3: DIAGNOSIS ===
 elif st.session_state.step == 3:
-    st.header("Step 3: Describe Your Symptoms")
+    st.subheader(T["step3"])
+    symptoms = st.session_state.form_data["symptoms"]
+    diagnosis = "General Viral Infection"
+    treatment = "Paracetamol and rest"
 
-    if st.session_state.answers["complaint"] == "Toothache":
-        st.session_state.answers["pain_severity"] = st.selectbox("Pain Severity:", ["Mild", "Moderate", "Severe"])
-        st.session_state.answers["pain_duration"] = st.slider("How long have you had the pain?", 0, 30, 3)
-        st.session_state.answers["pain_trigger"] = st.radio("Is the pain triggered by cold, heat, or biting?", ["Yes", "No"])
+    if "Toothache" in symptoms or "Kubabara amenyo" in symptoms:
+        diagnosis = "Possible Dental Infection"
+        treatment = "Ibuprofen + Dental evaluation"
+    elif "Shortness of breath" in symptoms or "Guhumeka nabi" in symptoms:
+        diagnosis = "Suspected Respiratory Issue"
+        treatment = "Immediate clinical exam recommended"
 
-    elif st.session_state.answers["complaint"] == "Bleeding Gums":
-        st.session_state.answers["bleeding_occurrence"] = st.selectbox("When does bleeding occur?", ["Brushing", "Eating", "Randomly"])
-        st.session_state.answers["gum_swelling"] = st.radio("Do your gums feel swollen or tender?", ["Yes", "No"])
+    st.session_state.form_data.update({"diagnosis": diagnosis, "treatment": treatment})
+    st.markdown(f"**{T['diagnosis']}:** {diagnosis}")
+    st.markdown(f"**{T['treatment']}:** {treatment}")
 
-    elif st.session_state.answers["complaint"] == "Jaw Swelling":
-        st.session_state.answers["swelling_size"] = st.selectbox("How large is the swelling?", ["Small", "Moderate", "Severe"])
-        st.session_state.answers["difficulty_opening_mouth"] = st.radio("Do you have difficulty opening your mouth?", ["Yes", "No"])
+    if st.button(T["finalize"]):
+        data = st.session_state.form_data
+        c.execute('''
+            INSERT INTO consultations (name, age, gender, symptoms, diagnosis, treatment, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            data["name"],
+            data["age"],
+            data["gender"],
+            ", ".join(data["symptoms"]),
+            data["diagnosis"],
+            data["treatment"],
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        ))
+        conn.commit()
+        st.success(T["saved"])
+        st.session_state.step = 4
 
-    if st.button("Back"): prev_step()
-    if st.button("Next"): next_step()
-
-# **Step 4: Diagnosis Summary & PDF Generation**
+# === STEP 4: PDF DOWNLOAD ===
 elif st.session_state.step == 4:
-    st.header("Step 4: Diagnosis & Recommendations")
+    st.subheader(T["step4"])
 
-    # Generate possible diagnosis based on responses
-    diagnosis = []
-    recommendations = []
-    urgency_level = "Routine Consultation"
+    def generate_pdf(data):
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Arial", size=12)
+        pdf.cell(200, 10, txt="Medical Consultation Report", ln=True, align='C')
+        pdf.ln(10)
+        for key, value in data.items():
+            if isinstance(value, list):
+                value = ", ".join(value)
+            pdf.cell(200, 10, txt=f"{key.capitalize()}: {value}", ln=True)
+        filename = f"consultation_{data['name'].replace(' ', '_')}.pdf"
+        path = os.path.join("reports", filename)
+        os.makedirs("reports", exist_ok=True)
+        pdf.output(path)
+        return path
 
-    if st.session_state.answers.get("pain_severity") == "Severe" and st.session_state.answers.get("pain_duration", 0) > 3 and st.session_state.answers.get("pain_trigger") == "Yes":
-        diagnosis.append("Irreversible pulpitis or deep dental caries")
-        recommendations.append("Urgent endodontic evaluation needed.")
-        urgency_level = "Urgent Consultation"
+    report_path = generate_pdf(st.session_state.form_data)
+    with open(report_path, "rb") as f:
+        st.download_button(
+            label=T["download"],
+            data=f,
+            file_name=os.path.basename(report_path),
+            mime="application/pdf"
+        )
 
-    if st.session_state.answers.get("high_fever") == "Yes" or st.session_state.answers.get("difficulty_swallowing") == "Yes":
-        urgency_level = "Emergency Consultation"
-        recommendations.append("Seek immediate medical attention.")
-
-    st.markdown(f"### **Possible Diagnosis:** {', '.join(diagnosis)}")
-    st.markdown(f"### **Recommendations:** {', '.join(recommendations)}")
-    st.markdown(f"### **Urgency Level:** 🔥 {urgency_level}")
-
-    if st.button("📄 Download PDF Report"):
-        pdf_buffer = generate_pdf()
-        st.download_button("Download Report", pdf_buffer, "consultation_report.pdf", "application/pdf")
-
-    if st.button("🔁 New Consultation"):
+    if st.button(T["new"]):
         st.session_state.step = 1
-        st.session_state.answers = {}
+        st.session_state.form_data = {}
+
+# === SIDEBAR HISTORY ===
+with st.sidebar:
+    st.header(T["history"])
+    results = c.execute("SELECT name, created_at, diagnosis FROM consultations ORDER BY id DESC LIMIT 10").fetchall()
+    for row in results:
+        st.markdown(f"- **{row[0]}** | {row[1][:16]} | _{row[2]}_")
