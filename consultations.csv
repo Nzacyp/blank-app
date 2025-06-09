@@ -1,0 +1,4 @@
+timestamp,username,patient_name,age,gender,complaint,summary
+2025-06-06 18:29:05,admin,nzabahimana cyprien,33,Male,Toothache,**Possible Diagnoses:**   - General tooth sensitivity  **Recommendations:**   - Monitor with desensitizing toothpaste.  **Treatment Plan:**   - Topical fluoride.
+2025-06-08 11:53:51,admin,cyprien,22,Male,Toothache,**Possible Diagnoses:**   - General tooth sensitivity  **Recommendations:**   - Monitor with desensitizing toothpaste.  **Treatment Plan:**   - Topical fluoride.
+2025-06-08 14:09:08,admin,nzabahimana cyprien,33,Female,Toothache,**Possible Diagnoses:**   - General tooth sensitivity  **Recommendations:**   - Monitor with desensitizing toothpaste.  **Treatment Plan:**   - Topical fluoride.
