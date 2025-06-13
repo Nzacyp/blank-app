@@ -2,6 +2,10 @@ streamlit
 reportlab==4.4.1
 bcrypt==4.0.1
 fpdf
+flask
+flask-cors
+gunicorn
+
 
 
 
