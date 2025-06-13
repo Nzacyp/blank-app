@@ -1,27 +1,49 @@
 {
-  "name": "backend",
+  "name": "self-consultation-app",
   "version": "1.0.0",
-  "main": "app.js",
+  "main": "main.js",
+  "description": "Self Consultation App Backend",
   "scripts": {
     "start": "node server.js",
-  "dev": "nodemon server.js"
+    "dev-server": "nodemon server.js",
+    "dev": "vite",
+    "build": "vite build",
+    "serve": "vite preview",
+    "electron-start": "electron .",
+    "build-desktop": "npm run build && electron-builder"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
   "dependencies": {
+    "@capacitor/camera": "^7.0.1",
+    "@capacitor/core": "^7.3.0",
+    "@capacitor/splash-screen": "^7.0.1",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
+    "express-async-handler": "^1.2.0",
     "jsonwebtoken": "^9.0.2",
     "mongodb": "^6.16.0",
-    "mongoose": "^8.15.1"
+    "mongoose": "^8.15.1",
+    "vite": "^6.3.5"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.3.0",
+    "electron": "^27.0.0",
+    "electron-builder": "^24.13.3",
     "nodemon": "^3.1.10"
+  },
+  "build": {
+    "files": [
+      "main.js",
+      "app.js",
+      "server.js",
+      "dist/**/*",
+      "routes/**/*",
+      "controllers/**/*",
+      "models/**/*",
+      "middleware/**/*",
+      "utils/**/*",
+      ".env"
+    ]
   }
 }
-
-

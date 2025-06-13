@@ -1,96 +1,158 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Self Consultation</title>
+  <meta charset="UTF-8" />
+  <title>Self Consultation App</title>
+  <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/3209/3209270.png" />
   <style>
-    body { font-family: Arial; max-width: 600px; margin: 30px auto; }
-    input, select, textarea { width: 100%; margin: 8px 0; padding: 8px; }
-    button { padding: 10px 20px; }
-    #report { margin-top: 20px; background: #f4f4f4; padding: 10px; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f7f9fc;
+      color: #333;
+      max-width: 700px;
+      margin: 30px auto;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    h2 { color: #004d99; }
+    input, select, textarea {
+      width: 100%;
+      margin: 10px 0;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      box-sizing: border-box;
+    }
+    button {
+      padding: 10px 20px;
+      background: #004d99;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    button:hover {
+      background: #0066cc;
+    }
+    #report {
+      white-space: pre-wrap;
+      background: #e6f2ff;
+      padding: 15px;
+      margin-top: 20px;
+      border-radius: 8px;
+      border-left: 5px solid #004d99;
+    }
+    #downloadBtn {
+      margin-top: 10px;
+      background: #28a745;
+      display: none;
+    }
+    .logo {
+      width: 100px;
+      display: block;
+      margin: 0 auto 20px;
+    }
   </style>
 </head>
 <body>
 
-<h2>Login</h2>
-<input type="email" id="email" placeholder="Email" />
-<input type="password" id="password" placeholder="Password" />
-<button onclick="login()">Login</button>
+  <img class="logo" src="https://cdn-icons-png.flaticon.com/512/3209/3209270.png" alt="Clinic Logo" />
 
-<h2>Submit Consultation</h2>
-<form id="consultForm">
-  <input id="symptoms" placeholder="Symptoms (comma-separated)" required />
-  <select id="duration">
-    <option value="">Select duration</option>
-    <option>less than 3 days</option>
-    <option>3-7 days</option>
-    <option>more than 1 week</option>
-  </select>
-  <select id="severity">
-    <option value="">Select severity</option>
-    <option>low</option>
-    <option>moderate</option>
-    <option>high</option>
-  </select>
-  <textarea id="notes" placeholder="Additional notes..."></textarea>
-  <button type="submit">Submit</button>
-</form>
+  <h2>👤 Login</h2>
+  <input type="email" id="email" placeholder="Email" />
+  <input type="password" id="password" placeholder="Password" />
+  <button onclick="login()">Login</button>
 
-<div id="report"></div>
+  <h2>🩺 Self Consultation</h2>
+  <form id="consultForm">
+    <input id="symptoms" placeholder="Symptoms (comma-separated)" required />
+    <select id="duration" required>
+      <option value="">Select duration</option>
+      <option>less than 3 days</option>
+      <option>3-7 days</option>
+      <option>more than 1 week</option>
+    </select>
+    <select id="severity" required>
+      <option value="">Select severity</option>
+      <option>low</option>
+      <option>moderate</option>
+      <option>high</option>
+    </select>
+    <textarea id="notes" placeholder="Additional notes..."></textarea>
+    <button type="submit">Submit</button>
+  </form>
 
-<script>
-  const API = 'http://localhost:5000/api';
+  <div id="report"></div>
+  <button id="downloadBtn">📄 Download PDF Report</button>
 
-  async function login() {
-    const email = document.getElementById("email").value;
-    const password = document.getElementById("password").value;
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script>
+    const API = 'http://localhost:5000/api';
 
-    const res = await fetch(`${API}/users/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password })
+    async function login() {
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+
+      const res = await fetch(`${API}/users/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        localStorage.setItem("token", data.token);
+        alert("✅ Logged in successfully!");
+      } else {
+        alert(data.message || "Login failed");
+      }
+    }
+
+    document.getElementById("consultForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+
+      const token = localStorage.getItem("token");
+      if (!token) {
+        alert("Please login first.");
+        return;
+      }
+
+      const symptoms = document.getElementById("symptoms").value.split(',').map(s => s.trim().toLowerCase());
+      const duration = document.getElementById("duration").value;
+      const severity = document.getElementById("severity").value;
+      const notes = document.getElementById("notes").value;
+
+      const res = await fetch(`${API}/consult`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ symptoms, duration, severity, notes })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        const reportText = `Consultation Report:\n\nSymptoms: ${data.symptoms.join(', ')}\nDuration: ${data.duration}\nSeverity: ${data.severity}\nNotes: ${data.notes}\n\nDiagnosis: ${data.diagnosis}\n\nSuggested Treatment:\n${data.treatment}\n\nRecommended Lab Exams:\n${data.labExams}`;
+
+        document.getElementById("report").innerText = reportText;
+        document.getElementById("downloadBtn").style.display = "inline-block";
+      } else {
+        alert(data.message || "Consultation failed");
+      }
     });
 
-    const data = await res.json();
-    if (res.ok) {
-      localStorage.setItem("token", data.token);
-      alert("Logged in successfully!");
-    } else {
-      alert(data.message || "Login failed");
-    }
-  }
-
-  document.getElementById("consultForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-
-    const token = localStorage.getItem("token");
-    if (!token) {
-      alert("Please login first.");
-      return;
-    }
-
-    const symptoms = document.getElementById("symptoms").value.split(',').map(s => s.trim());
-    const duration = document.getElementById("duration").value;
-    const severity = document.getElementById("severity").value;
-    const notes = document.getElementById("notes").value;
-
-    const res = await fetch(`${API}/consult`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`
-      },
-      body: JSON.stringify({ symptoms, duration, severity, notes })
+    document.getElementById("downloadBtn").addEventListener("click", () => {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      const reportText = document.getElementById("report").innerText;
+      const lines = doc.splitTextToSize(reportText, 180);
+      doc.text(lines, 10, 20);
+      doc.save("consultation_report.pdf");
     });
-
-    const data = await res.json();
-    if (res.ok) {
-      document.getElementById("report").innerText = `📋 Generated Report:\n\n${data.report}`;
-    } else {
-      alert(data.message || "Consultation failed");
-    }
-  });
-</script>
+  </script>
 
 </body>
 </html>

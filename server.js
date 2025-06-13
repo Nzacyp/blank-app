@@ -1,4 +1,4 @@
-const mongoose = require('mongoose'); // ✅ This line is required
+mongoose = require('mongoose'); // ✅ This line is required
 const app = require('./app');
 require('dotenv').config();
 

@@ -1,9 +1,26 @@
+// routes/consultRoutes.js
+
 const express = require('express');
 const router = express.Router();
-const { submitConsultation, getUserHistory } = require('../controllers/consultController');
 const authMiddleware = require('../middleware/auth');
 
-router.post('/', authMiddleware, submitConsultation);
-router.get('/history', authMiddleware, getUserHistory);
+const {
+  createConsult,
+  getConsults,
+  getConsultById,
+  addFeedback
+} = require('../controllers/consultController');
+
+// Create a new consultation
+router.post('/consult', authMiddleware, createConsult);
+
+// Get all consultations for logged-in user
+router.get('/', authMiddleware, getConsults);
+
+// Get consultation by ID
+router.get('/:id', authMiddleware, getConsultById);
+
+// Add feedback for a consultation by ID
+router.post('/:id/feedback', authMiddleware, addFeedback);
 
 module.exports = router;

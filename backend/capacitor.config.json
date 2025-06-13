@@ -1,0 +1,10 @@
+{
+  "appId": "com.elitedental.app",
+  "appName": "Elite Dental Consultation",
+  "webDir": "dist",
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": false
+    }
+  }
+}

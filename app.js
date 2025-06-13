@@ -2,8 +2,9 @@ const express = require('express');
 const cors = require('cors');
 
 // Import route files
-const userRoutes = require('../routes/userRoutes');
-const consultRoutes = require('../routes/consultRoutes');
+const userRoutes = require('./routes/userRoutes');
+const consultRoutes = require('./routes/consultRoutes');
+
 
 const app = express();
 
@@ -14,6 +15,8 @@ app.use(express.json());
 // Routes
 app.use('/api/users', userRoutes);
 app.use('/api/consult', consultRoutes);
+app.use('/api', require('./routes/consultRoutes'));
+
 
 // Default route
 app.get('/', (req, res) => {
